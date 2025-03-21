@@ -14,7 +14,7 @@ class Message:
     origin: Literal["human", "ai"]
     message: str
 
-# --- CSS for layout ---
+# --- CSS ---
 def load_css():
     st.markdown("""
     <style>
@@ -48,29 +48,28 @@ def init_state():
     if "greeted" not in st.session_state:
         st.session_state.greeted = False
 
-# --- Sidebar with description + onboarding ---
+# --- Sidebar: intro + user form ---
 with st.sidebar:
     st.markdown("## 🧠 MindEase")
     st.markdown("""
 **MindEase** is a next-gen AI-powered emotional wellness companion.
 
-Built using:
-
+Built with:
 - 🧠 **Gemini 1.5 Flash** via Google Generative AI
-- 🛠️ **LangChain**'s advanced memory + prompt architecture
-- ⚡ **Streamlit** for real-time UI
-- 🧩 Modular, session-aware design
+- 🛠️ **LangChain** memory + chat architecture
+- ⚡ **Streamlit** for interactive UI
+- 📦 Modular, session-aware design
 
-### What it does:
-- Mindfully guides users through stress & emotion
-- Offers breathing exercises, reflections, and support
-- Remembers conversation context
-- Customizes tone based on user mood
+### What it offers:
+- Emotionally intelligent responses
+- Context memory during conversation
+- Personalized support based on your mood
+- A safe, judgment-free space to breathe and reflect
 
-This isn’t just a chatbot — it’s a **conversational therapeutic system** with dynamic emotional memory.
+This is more than a chatbot — it’s a calming AI therapist powered by cutting-edge tech.
 """)
 
-    st.markdown("### ✨ About You")
+    st.markdown("### ✨ Tell me about you")
 
     st.text_input("Your first name", key="user_name")
     st.selectbox(
@@ -80,36 +79,21 @@ This isn’t just a chatbot — it’s a **conversational therapeutic system** w
         key="user_feeling"
     )
 
-# --- In-memory conversation tracking ---
+# --- Store history per session ---
 store = {}
-
 def get_history(session_id):
-    # Personalize the intro once, after name/mood are filled
     if session_id not in store:
         store[session_id] = InMemoryChatMessageHistory()
-
-    if not st.session_state.greeted:
-        name = st.session_state.get("user_name", "friend")
-        feeling = st.session_state.get("user_feeling", "").lower()
-
-        intro = f"Hello {name.capitalize()}, I’m MindEase 🧘 – your gentle relaxation companion."
-        if feeling:
-            intro += f" I see you're feeling {feeling} today. Thank you for being here."
-        intro += " What’s been on your mind lately?"
-
-        store[session_id].add_ai_message(intro)
-        st.session_state.greeted = True
-
     return store[session_id]
 
-# --- Gemini Flash via LangChain ---
+# --- LLM setup ---
 llm = ChatGoogleGenerativeAI(
     model="gemini-1.5-flash",
     google_api_key=st.secrets["gemini_api_key"],
     temperature=0.6
 )
 
-# --- Summarize recent messages for memory injection ---
+# --- Summarize last user messages ---
 def summarize_conversation():
     user_msgs = [msg.message for msg in st.session_state.history if msg.origin == "human"]
     if not user_msgs:
@@ -117,12 +101,12 @@ def summarize_conversation():
     recent = "\n".join(user_msgs[-3:])
     return f"The user recently shared:\n{recent}\n"
 
-# --- Build chain with prompt template ---
+# --- Prompt builder ---
 def build_prompt():
     memory_summary = summarize_conversation()
     return ChatPromptTemplate.from_messages([
         ("system",
-         "You are MindEase, a warm and emotionally intelligent AI therapist. "
+         "You are MindEase, a calm, present, and emotionally intelligent AI therapist. "
          "You gently help users reflect, reduce stress, and feel heard. "
          "Avoid repeating the same advice. Respond with empathy and presence.\n"
          + memory_summary.strip()
@@ -138,11 +122,32 @@ def get_chain():
         history_messages_key="messages"
     )
 
-# --- On submit ---
+# --- On user submission ---
 def on_click():
     user_input = st.session_state.human_prompt
-    st.session_state.history.append(Message("human", user_input))
+    memory = get_history(st.session_state.session_id)
 
+    # 1. Save user message in UI + memory
+    st.session_state.history.append(Message("human", user_input))
+    memory.add_user_message(user_input)
+
+    # 2. Inject personalized AI intro (only once)
+    if not st.session_state.greeted:
+        name = st.session_state.get("user_name", "friend")
+        feeling = st.session_state.get("user_feeling", "").lower()
+
+        intro = f"Hello {name.capitalize()}, I’m MindEase 🧘 – your gentle relaxation companion."
+        if feeling:
+            intro += f" I see you're feeling {feeling} today. Thank you for being here."
+        intro += " Let's talk through what's on your mind."
+
+        memory.add_ai_message(intro)
+        st.session_state.history.append(Message("ai", intro))
+        st.session_state.greeted = True
+        st.session_state.human_prompt = ""  # clear field
+        return  # ⛔ Skip model call on first message
+
+    # 3. For ongoing messages, use the chain
     chain_with_history = get_chain()
     response = chain_with_history.invoke(
         {"messages": [HumanMessage(content=user_input)]},
@@ -150,9 +155,7 @@ def on_click():
     )
 
     st.session_state.history.append(Message("ai", response.content))
-
-    # ✅ Clear input field
-    st.session_state.human_prompt = ""
+    st.session_state.human_prompt = ""  # ✅ clear input
 
 # --- App startup ---
 init_state()
@@ -164,7 +167,7 @@ st.markdown("Let’s process your thoughts gently, with calm presence and emotio
 chat_placeholder = st.container()
 prompt_placeholder = st.form("chat-form")
 
-# --- Chat display ---
+# --- Chat rendering ---
 with chat_placeholder:
     for chat in st.session_state.history:
         div = f"""
@@ -176,7 +179,7 @@ with chat_placeholder:
         """
         st.markdown(div, unsafe_allow_html=True)
 
-# --- Input form ---
+# --- Input UI ---
 with prompt_placeholder:
     st.markdown("**What’s on your mind?**")
     cols = st.columns((6, 1))
