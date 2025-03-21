@@ -161,7 +161,7 @@ def on_click():
 init_state()
 load_css()
 
-st.title("🧘 MindEase: Gemini 1.5 Flash (LangChain)")
+st.title("🧘 MindEaseAI")
 st.markdown("Let’s process your thoughts gently, with calm presence and emotional memory.")
 
 chat_placeholder = st.container()
