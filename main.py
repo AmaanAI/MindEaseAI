@@ -2,7 +2,8 @@ import streamlit as st
 from dataclasses import dataclass
 from typing import Literal
 from langchain_core.chat_history import InMemoryChatMessageHistory
-from langchain_core.memory import ConversationBufferMemory
+
+# from langchain_core.memory import ConversationBufferMemory
 from langchain_openai import ChatOpenAI
 from langchain.chains import ConversationChain
 import streamlit.components.v1 as components
