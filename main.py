@@ -6,15 +6,15 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.chat_history import InMemoryChatMessageHistory
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 
-# Message structure
+# --- Chat message structure ---
 @dataclass
 class Message:
     origin: Literal["human", "ai"]
     message: str
 
-# Load embedded CSS for chat UI
+# --- Embedded CSS for chat UI ---
 def load_css():
     st.markdown("""
     <style>
@@ -39,14 +39,14 @@ def load_css():
     </style>
     """, unsafe_allow_html=True)
 
-# Session state
+# --- Session state initialization ---
 def init_state():
     if "history" not in st.session_state:
         st.session_state.history = []
     if "session_id" not in st.session_state:
         st.session_state.session_id = "user-session"
 
-# Memory store
+# --- Memory store (per session) ---
 store = {}
 def get_history(session_id):
     if session_id not in store:
@@ -57,24 +57,23 @@ def get_history(session_id):
         )
     return store[session_id]
 
-# LLM setup
-llm = ChatOpenAI(
-    model="gpt-3.5-turbo",
-    openai_api_key=st.secrets["openai_api_key"],
+# --- Gemini 1.5 Flash via LangChain ---
+llm = ChatGoogleGenerativeAI(
+    model="gemini-1.5-flash",
+    google_api_key=st.secrets["gemini_api_key"],
     temperature=0.6
 )
 
-# Prompt + chain
 prompt = ChatPromptTemplate.from_messages([
     ("system", 
-     "You are MindEase, a calm and caring AI therapist. "
-     "Help users reduce stress and anxiety. Use mindfulness, empathy, and gentle questions."),
+     "You are MindEase, a warm and supportive AI therapist. "
+     "Help users feel calm, reduce anxiety, and explore their thoughts with kindness. "
+     "Use mindfulness, validation, and empathy. Do not give medical advice."),
     MessagesPlaceholder(variable_name="messages")
 ])
 
 chain = prompt | llm
 
-# Wrap with memory
 chain_with_history = RunnableWithMessageHistory(
     chain,
     get_session_history=get_history,
@@ -82,7 +81,7 @@ chain_with_history = RunnableWithMessageHistory(
     history_messages_key="messages"
 )
 
-# Handle submit
+# --- User message callback ---
 def on_click():
     user_input = st.session_state.human_prompt
     st.session_state.history.append(Message("human", user_input))
@@ -94,17 +93,16 @@ def on_click():
 
     st.session_state.history.append(Message("ai", response.content))
 
-# App start
+# --- Main app layout ---
 init_state()
 load_css()
 
-st.title("🧘 MindEase: Your Relaxation Companion")
-st.markdown("Let’s work through your stress — gently, mindfully, and one breath at a time.")
+st.title("🧘 MindEase: Gemini 1.5 Flash (LangChain)")
+st.markdown("Let’s process your thoughts gently and mindfully.")
 
 chat_placeholder = st.container()
 prompt_placeholder = st.form("chat-form")
 
-# Chat history display
 with chat_placeholder:
     for chat in st.session_state.history:
         div = f"""
@@ -116,7 +114,6 @@ with chat_placeholder:
         """
         st.markdown(div, unsafe_allow_html=True)
 
-# Input form
 with prompt_placeholder:
     st.markdown("**What’s on your mind?**")
     cols = st.columns((6, 1))
